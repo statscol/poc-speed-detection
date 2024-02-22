@@ -9,6 +9,7 @@ from torch.cuda import is_available
 from ultralytics import YOLO
 
 from base import BaseDetector
+from classifier import FaceGenderage
 from config import CameraConfig, InferenceConfig
 from utils import preprocess_yolo_boxes
 
@@ -84,6 +85,69 @@ class YoloDetector(BaseDetector):
 
     def process_videoframe(self, frame, **kwargs):
         """Process videoframes with yolo-ultralytics default object tracking algorithm"""
+        return self.detect_image(frame, **kwargs)
+
+
+class OpenCVFaceDetector(BaseDetector):
+    def __init__(self, model_name: str = "", out_folder: str = "./inference"):
+        super().__init__()
+        self.model_name = model_name
+        self.out_folder = Path(out_folder)
+        self.classifier = FaceGenderage()
+        self.load_model()
+
+    def load_model(self):
+        self.model = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_profileface.xml"
+        )
+        self.classifier.prepare()
+
+    def detect_image(self, image: Union[str, np.ndarray], save_to_disk: bool = False):
+        out_path = self.get_outpath(image)
+        image = cv2.imread(image) if isinstance(image, str) else image
+        gray = cv2.cvtColor(image.copy(), cv2.COLOR_RGB2GRAY)
+        faces = self.model.detectMultiScale(gray, minSize=(30, 30))
+        # ids=None as we haven't implemented tracking algorithms for OpenCV based detectors
+        image = self.render_boxes(image, faces, ids=None)
+        if save_to_disk:
+            # save to disk using a random id
+            cv2.imwrite(out_path, image)
+            self.logger.info(f"Saved detections to {out_path}")
+        return image
+
+    def process_videoframe(self, frame, **kwargs):
+        return self.detect_image(frame, **kwargs)
+
+
+class OpenCVPersonDetector(BaseDetector):
+    def __init__(self, model_name: str = "", out_folder: str = "./inference"):
+        super().__init__()
+        self.model_name = model_name
+        self.out_folder = Path(out_folder)
+        self.classifier = FaceGenderage()
+        self.load_model()
+
+    def load_model(self):
+        self.model = cv2.HOGDescriptor()
+        self.model.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+        self.classifier.prepare()
+
+    def detect_image(self, image: Union[str, np.ndarray], save_to_disk=False):
+        """detect persons in an image provided using the @param image, can be a file path or a np.ndarray(cv2 image)"""
+        out_path = self.get_outpath(image)
+        image = cv2.imread(image) if isinstance(image, str) else image
+        gray = cv2.cvtColor(image.copy(), cv2.COLOR_RGB2GRAY)
+        # returns the bounding boxes for the detected objects
+        boxes, _ = self.model.detectMultiScale(gray, winStride=(8, 8))
+        boxes = np.array([[x, y, x + w, y + h] for (x, y, w, h) in boxes])
+        image = self.render_boxes(image, boxes, ids=None)
+        if save_to_disk:
+            # save to disk using a random id
+            cv2.imwrite(out_path, image)
+            self.logger.info(f"Saved detections to {out_path}")
+        return image
+
+    def process_videoframe(self, frame, **kwargs):
         return self.detect_image(frame, **kwargs)
 
 

@@ -21,13 +21,15 @@ pip install -r requirements.txt
 ### Speed Estimation
 
 - Create a Region of Interest (ROI) and find its coordinates and dimensions (width,height) in meters
-- instantiate the src.speed_estimator.SpeedEstimator() with the ROI coordinates (a polygon) and its dimensions.
-- provide a video and run the SpeedEstimator().estimate_speed
+- instantiate the src.speed_estimator.SpeedEstimator() with the video filepath, ROI coordinates (a polygon) and its dimensions.
+- Run the SpeedEstimator().estimate_speed() method, see an example in `src/speed_estimator.py`
 
-### Detection
+### Detection (WIP)
 
-- Meant to be used as a POC to integrate classifiers on top of an object detector output using cameras via RSTP or video inputs
+Meant to be used as a POC to integrate classifiers on top of an object detector output using cameras via RSTP or video inputs
 
+- Implements a Yolo Based Detector
+- OpenCV detectors: haarcascade_profileface, hog and a classifier on top of its detections which uses the ONNX protocol. Examples can be found in src/classifiers.py (can be any exported classifier in ONNX format)
 
 ## 🤿 Contributing to this repo
 
