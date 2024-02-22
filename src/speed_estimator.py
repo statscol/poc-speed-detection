@@ -202,10 +202,10 @@ class SpeedEstimator:
                     scene=annotated_frame, detections=detections, labels=labels
                 )
             video_writer.write(annotated_frame)
-            cv2.imwrite(
-                f"./inference/frame_{int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))}.png",
-                annotated_frame,
-            )
+            # cv2.imwrite(
+            #     f"./inference/frame_{int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))}.png",
+            #     annotated_frame,
+            # )
             if show_output:
                 cv2.imshow("speed-app-img", annotated_frame)
 
