@@ -1,0 +1,6 @@
+*.env*
+*pycache*
+*.pt
+*.mp4
+*.png
+*.jpg
