@@ -2,21 +2,25 @@ import logging
 from collections import defaultdict, deque
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import cv2
 import numpy as np
 import supervision as sv
 from ultralytics import YOLO
 
+from classifier import CarClassifier
 from config import SpeedEstimationConfig
-from utils import ViewTransformer
+from utils import ViewTransformer, crop_image
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)-8s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
+
+
+speed_config = SpeedEstimationConfig()
 
 
 class SpeedEstimator:
@@ -32,6 +36,8 @@ class SpeedEstimator:
         roi: np.array,
         target: np.array,
         model_name: str = "yolov8s.pt",
+        detector_classes: List[int] = [2],
+        classifier_path: str = "./models/carDetect.onnx",
     ):
         self.vid_path = vid_path
         self.ROI = roi
@@ -41,6 +47,13 @@ class SpeedEstimator:
         self.polygon_transformer = ViewTransformer(self.ROI, self.TARGET)
         # default model
         self.model = YOLO(model_name)
+        self.detector_classes = detector_classes
+        self.classifier_path = classifier_path
+        self.classifier = (
+            CarClassifier(self.classifier_path)
+            if self.classifier_path is not None
+            else self.classifier_path
+        )
         # reading input video
         self.cap = cv2.VideoCapture(self.vid_path)
         assert self.cap.isOpened(), "Error reading video file"
@@ -86,6 +99,22 @@ class SpeedEstimator:
         # of frames per second
         self.car_coordinates = defaultdict(lambda: deque(maxlen=int(self.fps)))
 
+    def classify_detections(self, detections, frame):
+        boxes, tracks, names = (
+            detections.xyxy,
+            detections.tracker_id,
+            detections.class_id,
+        )
+        # account for frames where there are no detections
+        if boxes is None or self.classifier_path is None:
+            return names
+
+        preds = []
+        for box, _ in zip(boxes, tracks):
+            crop = crop_image(box, frame)
+            preds.append(self.classifier.get(crop)[0])
+        return preds
+
     def estimate_speed(
         self,
         out_path: str,
@@ -118,7 +147,7 @@ class SpeedEstimator:
         )
         vid_size = self.w, self.h
         video_writer = cv2.VideoWriter(
-            out_filepath, cv2.VideoWriter_fourcc(*"XVID"), self.fps, vid_size
+            out_filepath, cv2.VideoWriter_fourcc(*"mp4v"), self.fps, vid_size
         )
 
         while self.cap.isOpened():
@@ -133,12 +162,13 @@ class SpeedEstimator:
                 iou=iou_thresh,
                 verbose=False,
                 agnostic_nms=True,
-                # default class id for cars,motorcycle,truck,bus
-                classes=[2, 3, 5, 7],
+                classes=self.detector_classes,
             )[0]
+
+            img_raw = im0.copy()
             if draw_roi:
                 im0 = sv.draw_polygon(
-                    scene=im0, polygon=self.ROI, color=sv.Color.RED, thickness=4
+                    scene=im0.copy(), polygon=self.ROI, color=sv.Color.RED, thickness=4
                 )
 
             detections = sv.Detections.from_ultralytics(detections)
@@ -156,9 +186,10 @@ class SpeedEstimator:
             points = self.polygon_transformer.transform_points(points).astype(int)
             annotated_frame = im0.copy()
 
+            classifier_labels = self.classify_detections(detections, img_raw)
             if len(detections) > 0:
                 for tracker_id, cls_id, [x, y] in zip(
-                    detections.tracker_id, detections.class_id, points
+                    detections.tracker_id, classifier_labels, points
                 ):
                     self.car_coordinates[tracker_id].append((x, y))
 
@@ -168,7 +199,12 @@ class SpeedEstimator:
                     for tracker_id in detections.tracker_id:
                         # avoid flickering issues, only compute speed if we have half the number of
                         # observations compared to the frames per second (30 fps ->15)
-                        cls_name = self.model.names.get(int(cls_id))
+                        # if the observation is a float means that the classifier was not set
+                        cls_name = (
+                            self.model.names.get(int(cls_id))
+                            if isinstance(cls_id, float)
+                            else cls_id
+                        )
                         if len(self.car_coordinates[tracker_id]) < int(self.fps / 2):
                             labels.append(f"{cls_name} #{tracker_id}")
                         else:
@@ -187,9 +223,7 @@ class SpeedEstimator:
                             speed_txt_out = (
                                 f"{speed:.1f} Km/h" if speed > 0 else "Stopped"
                             )
-                            labels.append(
-                                f"{self.model.names.get(int(cls_id))} #{tracker_id} : {speed_txt_out} "
-                            )
+                            labels.append(f"{cls_id} #{tracker_id} : {speed_txt_out} ")
 
                 annotated_frame = self.track_annotator.annotate(
                     scene=annotated_frame, detections=detections
@@ -232,13 +266,15 @@ if __name__ == "__main__":
         "./data/video_test.mp4",
         estimation_config.ROI,
         estimation_config.TARGET,
-        model_name="yolov8x.pt",
+        model_name=estimation_config.DETECTOR_PATH,
+        classifier_path=estimation_config.CLASSIFIER_PATH,
+        detector_classes=estimation_config.YOLO_DEFAULT_CLASSES,
     )
     detector.estimate_speed(
         "./inference",
         estimation_config.DEFAULT_CONF_SCORE,
         estimation_config.DEFAULT_IOU_THRESHOLD,
-        draw_roi=True,
+        draw_roi=estimation_config.DRAW_ROI,
         show_output=False,
         limit_seconds=60,
     )

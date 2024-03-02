@@ -19,7 +19,7 @@ repos:
     rev: 5.12.0
     hooks:
       - id: isort
-        args: ["--profile=black"]
+        args: ["--profile=black","--line-length=131"]
   - repo: https://github.com/PyCQA/flake8
     rev: 6.0.0
     hooks:
@@ -29,4 +29,4 @@ repos:
           - flake8-bugbear
           - flake8-comprehensions
           - flake8-simplify
-        args: ['--extend-ignore=B012,B006',--max-line-length=131]
+        args: ['--extend-ignore=B012,B006,W503',--max-line-length=131]

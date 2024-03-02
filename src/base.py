@@ -10,9 +10,10 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-from config import CameraConfig, InferenceConfig
+from config import CameraConfig, DetectorInferenceConfig
+from utils import crop_image
 
-inference_settings = InferenceConfig()
+inference_settings = DetectorInferenceConfig()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -49,9 +50,8 @@ class BaseDetector(ABC):
         )
 
     def crop_detection(self, image, box, save_crop=False, face=False):
-        x_i, y_i, x_f, y_f = box
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) if face else image
-        crop = image[y_i:y_f, x_i:x_f]
+        crop = crop_image(box, image)
         if image is not None and save_crop:
             cv2.imwrite(self.get_outpath(image, action="crop"), crop)
         return crop
@@ -71,10 +71,10 @@ class BaseDetector(ABC):
         boxes = np.array([[x, y, x + w, y + h] for (x, y, w, h) in boxes])
         img_out = copy.deepcopy(image)
         box_color = (0, 0, 255)
-        for (xA, yA, xB, yB), id in zip(boxes, ids):
-            crop = self.crop_detection(
-                image, (xA, yA, xB, yB), save_crop=save_crop, face=face
-            )
+        for box, id in zip(boxes, ids):
+            (xA, yA, xB, yB) = box
+            crop = self.crop_detection(image, box, save_crop=save_crop, face=face)
+
             detection = (
                 ids.get(id) if self.classifier is None else self.classifier.get(crop)[0]
             )

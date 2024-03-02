@@ -1,7 +1,7 @@
 import copy
 import logging
 from pathlib import Path
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import cv2
 import numpy as np
@@ -9,8 +9,10 @@ from torch.cuda import is_available
 from ultralytics import YOLO
 
 from base import BaseDetector
-from classifier import FaceGenderage
-from config import CameraConfig, InferenceConfig
+from classifier import CarClassifier, FaceGenderage
+from config import DetectorInferenceConfig
+
+# from config import CameraConfig
 from utils import preprocess_yolo_boxes
 
 logging.basicConfig(
@@ -19,28 +21,36 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-inference_config = InferenceConfig()
+inference_config = DetectorInferenceConfig()
 
 
 class YoloDetector(BaseDetector):
     def __init__(
         self,
         model_name: Optional[str] = inference_config.YOLO_MODEL_NAME,
+        classifier_path: Optional[str] = inference_config.CLASSIFIER_PATH,
+        detector_classes: List[int] = inference_config.YOLO_DEFAULT_CLASSES,
         out_folder: str = "./inference",
     ):
         super().__init__()
         self.model_name = model_name
         self.device = "0" if is_available() else "cpu"
         self.out_folder = Path(out_folder)
+        self.detector_classes = detector_classes
         self.out_folder.mkdir(exist_ok=True, parents=True)
         # this is meant to be used/adapted with a classifier on top of
         # yolo detections. skip it for now
-        self.classifier = None
+        self.classifier_path = classifier_path
         self.load_model()
         self.inference_method = {"image": self.model, "video": self.model.track}
 
     def load_model(self):
         self.model = YOLO(self.model_name)
+        self.classifier = (
+            CarClassifier(self.classifier_path)
+            if self.classifier_path is not None
+            else self.classifier_path
+        )
 
     def detect_image(
         self,
@@ -56,7 +66,8 @@ class YoloDetector(BaseDetector):
             source=frame,
             device=self.device,
             persist=method == "video",
-            classes=inference_config.YOLO_DEFAULT_CLASSES,
+            verbose=False,
+            classes=self.detector_classes,
             save_dir=str(self.out_folder),
             project=str(self.out_folder),
         )
@@ -152,6 +163,10 @@ class OpenCVPersonDetector(BaseDetector):
 
 
 if __name__ == "__main__":
-    detector = YoloDetector()
-    config = {"save_to_disk": True, "method": "video"}
-    results = detector.detect_camera(camera_config=CameraConfig(), **config)
+    detector = YoloDetector(
+        classifier_path=inference_config.CLASSIFIER_PATH,
+        model_name=inference_config.YOLO_MODEL_NAME,
+    )
+    config = {"save_to_disk": False, "method": "video"}
+    results = detector.detect_video("./data/video_test.mp4", **config)
+    # results = detector.detect_camera(camera_config=CameraConfig(), **config)

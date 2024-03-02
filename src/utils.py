@@ -10,6 +10,13 @@ def preprocess_yolo_boxes(boxes):
     return boxes_xywh
 
 
+def crop_image(box, image):
+    "box: list| array with xyxy positions"
+    x_i, y_i, x_f, y_f = box.astype(int)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    return image[y_i:y_f, x_i:x_f]
+
+
 class ViewTransformer:
     """taken from Roboflow tutorial
     https://blog.roboflow.com/estimate-speed-computer-vision/

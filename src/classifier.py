@@ -62,21 +62,19 @@ class FaceGenderage:
 
 
 class CarClassifier:
-    def __init__(self, model_name: str = "./models/car_classifier.onnx") -> None:
+    def __init__(self, model_name: str = "./models/carDetect.onnx") -> None:
         self.model = onnxruntime.InferenceSession(model_name)
         self.input = self.model.get_inputs()[0]
         self.label2id = {
-            "coupe": 0,
-            "sedan": 1,
-            "suv": 2,
-            "van": 3,
-            "large-vehicle": 4,
-            "truck": 5,
-            "bus": 6,
-            "hatchback": 7,
-            "convertible": 8,
-            "pick-up-truck": 9,
-            "tricimoto": 10,
+            "sedan": 0,
+            "suv": 1,
+            "van": 2,
+            "truck": 3,
+            "bus": 4,
+            "hatchback": 5,
+            "pick-up-truck": 6,
+            "tricimoto": 7,
+            "other": 8,
         }
         self.id2label = {v: k for k, v in self.label2id.items()}
         self.augmentations = ab.Compose(
