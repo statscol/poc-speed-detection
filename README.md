@@ -24,9 +24,9 @@ pip install -r requirements.txt
 - instantiate the src.speed_estimator.SpeedEstimator() with the video filepath, ROI coordinates (a polygon) and its dimensions.
 - Run the SpeedEstimator().estimate_speed() method, see an example in `src/speed_estimator.py`
 
-### Detection (WIP)
+### Detection
 
-Meant to be used as a POC to integrate classifiers on top of an object detector output using cameras via RSTP or video inputs
+Meant to be used as a POC to integrate classifiers on top of an object detector output using cameras via RTSP or video inputs
 
 - Implements a Yolo Based Detector
 - OpenCV detectors: haarcascade_profileface, hog and a classifier on top of its detections which uses the ONNX protocol. Examples can be found in src/classifiers.py (can be any exported classifier in ONNX format)
